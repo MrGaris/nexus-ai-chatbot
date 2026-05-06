@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NexusAI — інтелектуальний чат-помічник на базі штучного інтелекту. Безкоштовний AI асистент для вирішення будь-яких задач.">
+    <title>NexusAI — Інтелектуальний Чат-Асистент</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Left Sidebar — Chat History -->
+    <aside class="sidebar sidebar-left" id="sidebar-left">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <span class="logo-text">NexusAI</span>
+            </div>
+            <button class="btn-icon" id="btn-new-chat" title="Новий чат">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="sidebar-search">
+            <div class="search-input-wrapper">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input type="text" id="search-chats" placeholder="Пошук чатів..." autocomplete="off">
+            </div>
+        </div>
+
+        <div class="sidebar-sections">
+            <div class="sidebar-section">
+                <span class="sidebar-section-title">Сьогодні</span>
+                <div class="chat-list" id="chat-list-today"></div>
+            </div>
+            <div class="sidebar-section">
+                <span class="sidebar-section-title">Попередні 7 днів</span>
+                <div class="chat-list" id="chat-list-week"></div>
+            </div>
+            <div class="sidebar-section">
+                <span class="sidebar-section-title">Раніше</span>
+                <div class="chat-list" id="chat-list-older"></div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <button class="sidebar-footer-btn" id="btn-clear-all" title="Очистити все">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                <span>Очистити всі чати</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <button class="btn-icon btn-toggle-sidebar" id="btn-toggle-left" title="Історія чатів">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
+            </button>
+
+            <div class="topbar-center">
+                <div class="model-selector" id="model-selector">
+                    <div class="model-badge">
+                        <div class="model-dot"></div>
+                        <span id="current-model-name">VyteAI Basic</span>
+                    </div>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </div>
+                <!-- Model Dropdown -->
+                <div class="model-dropdown" id="model-dropdown">
+                    <div class="model-option active" data-model="openai/gpt-oss-120b:free">
+                        <div class="model-option-info">
+                            <span class="model-option-name">VyteAI Basic</span>
+                            <span class="model-option-desc">Безкоштовна, потужна модель</span>
+                        </div>
+                        <span class="model-option-badge free">Free</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-icon btn-toggle-sidebar" id="btn-toggle-right" title="Профіль">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chat-area">
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcome-screen">
+                <div class="welcome-glow"></div>
+                <div class="welcome-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <h1 class="welcome-title">Привіт! Я <span class="gradient-text">NexusAI</span></h1>
+                <p class="welcome-subtitle">Ваш інтелектуальний асистент на базі штучного інтелекту. Задавайте будь-які питання — від коду до творчості.</p>
+
+                <div class="suggestion-grid">
+                    <button class="suggestion-card" data-prompt="Поясни мені квантові обчислення простими словами">
+                        <div class="suggestion-icon">🧠</div>
+                        <div class="suggestion-text">
+                            <span class="suggestion-title">Поясни складне</span>
+                            <span class="suggestion-desc">Квантові обчислення простими словами</span>
+                        </div>
+                    </button>
+                    <button class="suggestion-card" data-prompt="Напиши функцію на Python для сортування масиву">
+                        <div class="suggestion-icon">💻</div>
+                        <div class="suggestion-text">
+                            <span class="suggestion-title">Допоможи з кодом</span>
+                            <span class="suggestion-desc">Функція сортування на Python</span>
+                        </div>
+                    </button>
+                    <button class="suggestion-card" data-prompt="Напиши вірш про весну українською мовою">
+                        <div class="suggestion-icon">✨</div>
+                        <div class="suggestion-text">
+                            <span class="suggestion-title">Створи контент</span>
+                            <span class="suggestion-desc">Вірш про весну українською</span>
+                        </div>
+                    </button>
+                    <button class="suggestion-card" data-prompt="Склади план тренувань на тиждень для початківця">
+                        <div class="suggestion-icon">🏋️</div>
+                        <div class="suggestion-text">
+                            <span class="suggestion-title">Порадь щось</span>
+                            <span class="suggestion-desc">План тренувань на тиждень</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div class="messages-container" id="messages-container"></div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-wrapper" id="input-wrapper">
+                <div class="input-actions-left">
+                    <button class="btn-icon btn-attach" id="btn-attach" title="Прикріпити файл (скоро)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.49"/>
+                        </svg>
+                    </button>
+                </div>
+                <textarea id="message-input" placeholder="Напишіть повідомлення..." rows="1" autofocus></textarea>
+                <div class="input-actions-right">
+                    <span class="char-count" id="char-count"></span>
+                    <button class="btn-send" id="btn-send" title="Надіслати" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13"/>
+                            <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-stop hidden" id="btn-stop" title="Зупинити генерацію">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12" rx="2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <p class="input-disclaimer">NexusAI може помилятися. Перевіряйте важливу інформацію.</p>
+        </div>
+    </main>
+
+    <!-- Right Sidebar — Profile & Settings -->
+    <aside class="sidebar sidebar-right" id="sidebar-right">
+        <div class="sidebar-header">
+            <h3>Профіль</h3>
+            <button class="btn-icon" id="btn-close-right" title="Закрити">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="profile-section">
+            <div class="profile-avatar" id="profile-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+            </div>
+            <div class="profile-name" id="profile-name">Гість</div>
+            <div class="profile-email" id="profile-email">guest@nexusai.local</div>
+            <span class="profile-badge">Free Plan</span>
+        </div>
+
+        <div class="profile-stats">
+            <div class="stat-card">
+                <span class="stat-value" id="stat-messages">0</span>
+                <span class="stat-label">Повідомлень</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value" id="stat-chats">0</span>
+                <span class="stat-label">Чатів</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value" id="stat-tokens">0</span>
+                <span class="stat-label">Токенів</span>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h4 class="settings-title">Налаштування</h4>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <span class="setting-label">Тема</span>
+                    <span class="setting-desc">Темна / Світла</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="theme-toggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <span class="setting-label">Системний промпт</span>
+                    <span class="setting-desc">Інструкції для AI</span>
+                </div>
+                <button class="btn-sm" id="btn-system-prompt">Змінити</button>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <span class="setting-label">Температура</span>
+                    <span class="setting-desc" id="temp-value">0.7</span>
+                </div>
+                <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" class="range-slider">
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <span class="setting-label">Стрімінг</span>
+                    <span class="setting-desc">Посимвольний вивід</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="streaming-toggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <button class="btn-auth" id="btn-login">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                    <polyline points="10 17 15 12 10 7"/>
+                    <line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+                <span>Увійти / Зареєструватися</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- System Prompt Modal -->
+    <div class="modal-overlay" id="system-prompt-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Системний промпт</h3>
+                <button class="btn-icon" id="btn-close-modal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <textarea id="system-prompt-input" placeholder="Ви — корисний AI-асистент..." rows="6">Ви — корисний та дружній AI-асистент NexusAI. Відповідайте українською мовою, якщо користувач не вказав іншу. Будьте точними, інформативними та корисними.</textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btn-reset-prompt">Скинути</button>
+                <button class="btn-primary" id="btn-save-prompt">Зберегти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal (Stub) -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="auth-modal-title">Вхід</h3>
+                <button class="btn-icon" id="btn-close-auth">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="auth-tabs">
+                    <button class="auth-tab active" data-tab="login">Вхід</button>
+                    <button class="auth-tab" data-tab="register">Реєстрація</button>
+                </div>
+
+                <form class="auth-form" id="auth-form-login">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" placeholder="you@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Пароль</label>
+                        <input type="password" id="login-password" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn-primary btn-full">Увійти</button>
+                    <p class="auth-note">⚠️ Авторизація наразі у розробці. Дані не зберігаються.</p>
+                </form>
+
+                <form class="auth-form hidden" id="auth-form-register">
+                    <div class="form-group">
+                        <label for="reg-name">Ім'я</label>
+                        <input type="text" id="reg-name" placeholder="Ваше ім'я" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input type="email" id="reg-email" placeholder="you@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Пароль</label>
+                        <input type="password" id="reg-password" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn-primary btn-full">Зареєструватися</button>
+                    <p class="auth-note">⚠️ Авторизація наразі у розробці. Дані не зберігаються.</p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
