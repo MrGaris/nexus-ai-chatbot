@@ -1,13 +1,19 @@
 // ===== NexusAI Chatbot =====
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const API_KEY = 'GH_SECRET_OPENROUTER_API_KEY';
+let API_KEY = 'GH_SECRET_OPENROUTER_API_KEY';
 const DEFAULT_MODEL = 'openai/gpt-oss-120b:free';
 
 // Supabase Configuration
 const SUPABASE_URL = 'https://cuyxplgotvxzhlxzxhwr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_3wHwg5P8CSgb48E3RstwmQ_lqoKFRgE';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-const DEFAULT_SYSTEM = 'Ви — корисний та дружній AI-асистент NexusAI. Відповідайте українською мовою, якщо користувач не вказав іншу. Будьте точними, інформативними та корисними.';
+const DEFAULT_SYSTEM = '';
+
+// Для локального тестування (щоб працювало на комп'ютері, поки GitHub не підставив ключ)
+if (API_KEY === 'GH_SECRET_OPENROUTER_API_KEY' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    API_KEY = localStorage.getItem('local_api_key') || prompt('Для локального тестування введіть OpenRouter API Key:');
+    if (API_KEY) localStorage.setItem('local_api_key', API_KEY);
+}
 
 // ===== State =====
 let state = {
@@ -379,8 +385,8 @@ function appendTypingIndicator() {
 }
 
 async function sendMessage() {
-    if (API_KEY === 'GH_SECRET_OPENROUTER_API_KEY') {
-        showToast('Помилка: API Key не налаштовано на GitHub Secrets!', 'error');
+    if (!API_KEY || API_KEY === 'GH_SECRET_OPENROUTER_API_KEY') {
+        showToast('Помилка: API Key не налаштовано!', 'error');
         return;
     }
     const text = el.messageInput.value.trim();
