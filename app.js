@@ -2,10 +2,16 @@
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const API_KEY = 'GH_SECRET_OPENROUTER_API_KEY';
 const DEFAULT_MODEL = 'openai/gpt-oss-120b:free';
+
+// Supabase Configuration (Вставте свої дані)
+const SUPABASE_URL = 'https://cuyxplgotvxzhlxzxhwr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3wHwg5P8CSgb48E3RstwmQ_lqoKFRgE';
+const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const DEFAULT_SYSTEM = 'Ви — корисний та дружній AI-асистент NexusAI. Відповідайте українською мовою, якщо користувач не вказав іншу. Будьте точними, інформативними та корисними.';
 
 // ===== State =====
 let state = {
+    user: null,
     chats: JSON.parse(localStorage.getItem('nexus_chats') || '[]'),
     activeChatId: null,
     temperature: parseFloat(localStorage.getItem('nexus_temp') || '0.7'),
@@ -71,8 +77,50 @@ function init() {
     bindEvents();
     renderChatList();
     updateStats();
-    if (state.chats.length > 0) {
+    await checkUser();
+    if (state.user) {
+        await syncChatsFromSupabase();
+    } else if (state.chats.length > 0) {
         loadChat(state.chats[0].id);
+    }
+}
+
+async function syncChatsFromSupabase() {
+    if (!supabase || !state.user) return;
+    const { data, error } = await supabase
+        .from('chats')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
+    if (data) {
+        state.chats = data;
+        renderChatList();
+        if (data.length > 0 && !state.activeChatId) {
+            loadChat(data[0].id);
+        }
+    }
+}
+
+async function checkUser() {
+    if (!supabase) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        state.user = user;
+        updateUIForUser();
+    }
+}
+
+function updateUIForUser() {
+    if (state.user) {
+        $('profile-name').textContent = state.user.user_metadata?.full_name || state.user.email.split('@')[0];
+        $('profile-email').textContent = state.user.email;
+        $('btn-login').innerHTML = '<span>Вийти</span>';
+        $('btn-login').onclick = handleLogout;
+    } else {
+        $('profile-name').textContent = 'Гість';
+        $('profile-email').textContent = 'guest@nexusai.local';
+        $('btn-login').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg><span>Увійти / Зареєструватися</span>';
+        $('btn-login').onclick = () => el.authModal.classList.add('open');
     }
 }
 
@@ -135,13 +183,9 @@ function bindEvents() {
             $('auth-modal-title').textContent = tab.dataset.tab === 'login' ? 'Вхід' : 'Реєстрація';
         });
     });
-    // Auth forms stub
-    $('auth-form-login').addEventListener('submit', e => {
-        e.preventDefault(); showToast('Авторизація у розробці 🚧', 'error');
-    });
-    $('auth-form-register').addEventListener('submit', e => {
-        e.preventDefault(); showToast('Реєстрація у розробці 🚧', 'error');
-    });
+    // Auth forms
+    $('auth-form-login').addEventListener('submit', handleLogin);
+    $('auth-form-register').addEventListener('submit', handleRegister);
     // Suggestions
     document.querySelectorAll('.suggestion-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -166,10 +210,29 @@ function onInputChange() {
 }
 
 // ===== Chat Management =====
-function createChat(title) {
-    const chat = { id: Date.now().toString(), title: title || 'Новий чат', messages: [], created: Date.now() };
-    state.chats.unshift(chat);
-    saveChats();
+async function createChat(title) {
+    const chat = { 
+        id: state.user ? undefined : Date.now().toString(), 
+        title: title || 'Новий чат', 
+        messages: [], 
+        created_at: new Date().toISOString() 
+    };
+
+    if (state.user && supabase) {
+        const { data, error } = await supabase
+            .from('chats')
+            .insert([{ title: chat.title, user_id: state.user.id, messages: [] }])
+            .select();
+        if (data) {
+            state.chats.unshift(data[0]);
+            state.activeChatId = data[0].id;
+        }
+    } else {
+        chat.id = Date.now().toString();
+        state.chats.unshift(chat);
+        state.activeChatId = chat.id;
+        saveChats();
+    }
     return chat;
 }
 
@@ -194,7 +257,10 @@ function loadChat(id) {
     scrollToBottom();
 }
 
-function deleteChat(id) {
+async function deleteChat(id) {
+    if (state.user && supabase) {
+        await supabase.from('chats').delete().eq('id', id);
+    }
     state.chats = state.chats.filter(c => c.id !== id);
     saveChats();
     if (state.activeChatId === id) newChat();
@@ -202,17 +268,18 @@ function deleteChat(id) {
     updateStats();
 }
 
-function clearAllChats() {
-    if (!confirm('Очистити всю історію чатів?')) return;
-    state.chats = [];
-    saveChats();
-    newChat();
-    updateStats();
-    showToast('Історію очищено', 'success');
-}
-
-function saveChats() {
-    localStorage.setItem('nexus_chats', JSON.stringify(state.chats));
+async function saveChats() {
+    if (state.user && supabase && state.activeChatId) {
+        const chat = state.chats.find(c => c.id === state.activeChatId);
+        if (chat) {
+            await supabase
+                .from('chats')
+                .update({ messages: chat.messages })
+                .eq('id', state.activeChatId);
+        }
+    } else {
+        localStorage.setItem('nexus_chats', JSON.stringify(state.chats));
+    }
 }
 
 // ===== Render Chat List =====
@@ -224,7 +291,7 @@ function renderChatList() {
 
     state.chats.forEach(c => {
         if (q && !c.title.toLowerCase().includes(q)) return;
-        const age = now - c.created;
+        const age = now - new Date(c.created_at || c.created).getTime();
         if (age < day) today.push(c);
         else if (age < day * 7) week.push(c);
         else older.push(c);
@@ -327,8 +394,7 @@ async function sendMessage() {
     // Create chat if needed
     if (!state.activeChatId) {
         const title = text.length > 40 ? text.substring(0, 40) + '…' : text;
-        const chat = createChat(title);
-        state.activeChatId = chat.id;
+        const chat = await createChat(title);
         el.welcomeScreen.classList.add('hidden');
         renderChatList();
     }
@@ -539,6 +605,54 @@ function showToast(msg, type = 'success') {
     t.textContent = msg;
     el.toastContainer.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+// ===== Supabase Auth Functions =====
+async function handleRegister(e) {
+    e.preventDefault();
+    if (!supabase) return;
+    const email = $('reg-email').value;
+    const password = $('reg-password').value;
+    const name = $('reg-name').value;
+
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } }
+    });
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Перевірте пошту для підтвердження!', 'success');
+        el.authModal.classList.remove('open');
+    }
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    if (!supabase) return;
+    const email = $('login-email').value;
+    const password = $('login-password').value;
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        state.user = data.user;
+        updateUIForUser();
+        el.authModal.classList.remove('open');
+        showToast('Вітаємо, ' + (state.user.user_metadata?.full_name || email), 'success');
+    }
+}
+
+async function handleLogout() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    state.user = null;
+    updateUIForUser();
+    showToast('Ви вийшли з аккаунту', 'success');
 }
 
 // ===== Start =====
