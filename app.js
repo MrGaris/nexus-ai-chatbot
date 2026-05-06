@@ -3,7 +3,7 @@ const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const API_KEY = 'GH_SECRET_OPENROUTER_API_KEY';
 const DEFAULT_MODEL = 'openai/gpt-oss-120b:free';
 
-// Supabase Configuration (Вставте свої дані)
+// Supabase Configuration
 const SUPABASE_URL = 'https://cuyxplgotvxzhlxzxhwr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_3wHwg5P8CSgb48E3RstwmQ_lqoKFRgE';
 const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -67,7 +67,7 @@ const el = {
 };
 
 // ===== Init =====
-function init() {
+async function init() {
     applyTheme(state.theme);
     el.themeToggle.checked = state.theme === 'light';
     el.tempSlider.value = state.temperature;
@@ -173,7 +173,7 @@ function bindEvents() {
     });
     el.btnLogin.addEventListener('click', () => el.authModal.classList.add('open'));
     el.btnCloseAuth.addEventListener('click', () => el.authModal.classList.remove('open'));
-    // Auth tabs
+    
     document.querySelectorAll('.auth-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -183,10 +183,10 @@ function bindEvents() {
             $('auth-modal-title').textContent = tab.dataset.tab === 'login' ? 'Вхід' : 'Реєстрація';
         });
     });
-    // Auth forms
+
     $('auth-form-login').addEventListener('submit', handleLogin);
     $('auth-form-register').addEventListener('submit', handleRegister);
-    // Suggestions
+
     document.querySelectorAll('.suggestion-card').forEach(card => {
         card.addEventListener('click', () => {
             el.messageInput.value = card.dataset.prompt;
@@ -194,13 +194,12 @@ function bindEvents() {
             sendMessage();
         });
     });
-    // Close modals on overlay click
+
     [el.systemPromptModal, el.authModal].forEach(modal => {
         modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
     });
 }
 
-// ===== Input =====
 function onInputChange() {
     const v = el.messageInput.value;
     el.btnSend.disabled = !v.trim();
@@ -209,7 +208,6 @@ function onInputChange() {
     el.messageInput.style.height = Math.min(el.messageInput.scrollHeight, 160) + 'px';
 }
 
-// ===== Chat Management =====
 async function createChat(title) {
     const chat = { 
         id: state.user ? undefined : Date.now().toString(), 
@@ -282,7 +280,6 @@ async function saveChats() {
     }
 }
 
-// ===== Render Chat List =====
 function renderChatList() {
     const q = el.searchChats.value.toLowerCase();
     const now = Date.now();
@@ -327,7 +324,6 @@ function renderChatList() {
     render(older, el.chatListOlder);
 }
 
-// ===== Messages =====
 function appendMessage(role, content, animate = true) {
     const div = document.createElement('div');
     div.className = `message ${role}`;
@@ -347,7 +343,7 @@ function appendMessage(role, content, animate = true) {
         <div class="message-content">${formatMarkdown(content)}</div>
     `;
     el.messagesContainer.appendChild(div);
-    // Add copy buttons to code blocks
+    
     div.querySelectorAll('pre').forEach(pre => {
         const btn = document.createElement('button');
         btn.className = 'copy-btn';
@@ -382,7 +378,6 @@ function appendTypingIndicator() {
     return div;
 }
 
-// ===== Send Message =====
 async function sendMessage() {
     if (API_KEY === 'GH_SECRET_OPENROUTER_API_KEY') {
         showToast('Помилка: API Key не налаштовано на GitHub Secrets!', 'error');
@@ -391,7 +386,6 @@ async function sendMessage() {
     const text = el.messageInput.value.trim();
     if (!text) return;
 
-    // Create chat if needed
     if (!state.activeChatId) {
         const title = text.length > 40 ? text.substring(0, 40) + '…' : text;
         const chat = await createChat(title);
@@ -402,7 +396,6 @@ async function sendMessage() {
     const chat = state.chats.find(c => c.id === state.activeChatId);
     if (!chat) return;
 
-    // Add user message
     chat.messages.push({ role: 'user', content: text });
     appendMessage('user', text);
     el.messageInput.value = '';
@@ -410,12 +403,10 @@ async function sendMessage() {
     saveChats();
     scrollToBottom();
 
-    // Show typing / switch buttons
     el.btnSend.classList.add('hidden');
     el.btnStop.classList.remove('hidden');
     const typingEl = appendTypingIndicator();
 
-    // Build messages for API
     const apiMessages = [{ role: 'system', content: state.systemPrompt }];
     const recent = chat.messages.slice(-20);
     recent.forEach(m => apiMessages.push({ role: m.role, content: m.content }));
@@ -481,7 +472,6 @@ async function streamResponse(messages, typingEl, chat) {
                 if (delta) {
                     fullText += delta;
                     contentEl.innerHTML = formatMarkdown(fullText);
-                    // Re-add copy buttons
                     contentEl.querySelectorAll('pre:not(:has(.copy-btn))').forEach(pre => {
                         const btn = document.createElement('button');
                         btn.className = 'copy-btn';
@@ -532,33 +522,22 @@ function stopGeneration() {
     }
 }
 
-// ===== Markdown =====
 function formatMarkdown(text) {
     if (!text) return '';
     let html = escapeHtml(text);
-    // Code blocks
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
         `<pre><code class="language-${lang}">${code.trim()}</code></pre>`);
-    // Inline code
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // Bold
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // Italic
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Headers
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    // Blockquote
     html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-    // Unordered list
     html = html.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
     html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-    // Ordered list
     html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-    // Links
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    // Line breaks → paragraphs
     html = html.replace(/\n\n/g, '</p><p>');
     html = html.replace(/\n/g, '<br>');
     html = '<p>' + html + '</p>';
@@ -574,7 +553,6 @@ function escapeHtml(text) {
     return d.innerHTML;
 }
 
-// ===== Utils =====
 function scrollToBottom() {
     el.chatArea.scrollTop = el.chatArea.scrollHeight;
 }
@@ -607,7 +585,6 @@ function showToast(msg, type = 'success') {
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
 }
 
-// ===== Supabase Auth Functions =====
 async function handleRegister(e) {
     e.preventDefault();
     if (!supabase) return;
@@ -655,5 +632,4 @@ async function handleLogout() {
     showToast('Ви вийшли з аккаунту', 'success');
 }
 
-// ===== Start =====
 init();
