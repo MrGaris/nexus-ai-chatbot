@@ -6,7 +6,7 @@ const DEFAULT_MODEL = 'openai/gpt-oss-120b:free';
 // Supabase Configuration
 const SUPABASE_URL = 'https://cuyxplgotvxzhlxzxhwr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_3wHwg5P8CSgb48E3RstwmQ_lqoKFRgE';
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const DEFAULT_SYSTEM = 'Ви — корисний та дружній AI-асистент NexusAI. Відповідайте українською мовою, якщо користувач не вказав іншу. Будьте точними, інформативними та корисними.';
 
 // ===== State =====
@@ -86,8 +86,8 @@ async function init() {
 }
 
 async function syncChatsFromSupabase() {
-    if (!supabase || !state.user) return;
-    const { data, error } = await supabase
+    if (!supabaseClient || !state.user) return;
+    const { data, error } = await supabaseClient
         .from('chats')
         .select('*')
         .order('created_at', { ascending: false });
@@ -102,8 +102,8 @@ async function syncChatsFromSupabase() {
 }
 
 async function checkUser() {
-    if (!supabase) return;
-    const { data: { user } } = await supabase.auth.getUser();
+    if (!supabaseClient) return;
+    const { data: { user } } = await supabaseClient.auth.getUser();
     if (user) {
         state.user = user;
         updateUIForUser();
@@ -216,8 +216,8 @@ async function createChat(title) {
         created_at: new Date().toISOString() 
     };
 
-    if (state.user && supabase) {
-        const { data, error } = await supabase
+    if (state.user && supabaseClient) {
+        const { data, error } = await supabaseClient
             .from('chats')
             .insert([{ title: chat.title, user_id: state.user.id, messages: [] }])
             .select();
@@ -256,8 +256,8 @@ function loadChat(id) {
 }
 
 async function deleteChat(id) {
-    if (state.user && supabase) {
-        await supabase.from('chats').delete().eq('id', id);
+    if (state.user && supabaseClient) {
+        await supabaseClient.from('chats').delete().eq('id', id);
     }
     state.chats = state.chats.filter(c => c.id !== id);
     saveChats();
@@ -267,10 +267,10 @@ async function deleteChat(id) {
 }
 
 async function saveChats() {
-    if (state.user && supabase && state.activeChatId) {
+    if (state.user && supabaseClient && state.activeChatId) {
         const chat = state.chats.find(c => c.id === state.activeChatId);
         if (chat) {
-            await supabase
+            await supabaseClient
                 .from('chats')
                 .update({ messages: chat.messages })
                 .eq('id', state.activeChatId);
@@ -587,12 +587,12 @@ function showToast(msg, type = 'success') {
 
 async function handleRegister(e) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabaseClient) return;
     const email = $('reg-email').value;
     const password = $('reg-password').value;
     const name = $('reg-name').value;
 
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
         options: { data: { full_name: name } }
@@ -608,11 +608,11 @@ async function handleRegister(e) {
 
 async function handleLogin(e) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!supabaseClient) return;
     const email = $('login-email').value;
     const password = $('login-password').value;
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
         showToast(error.message, 'error');
@@ -625,8 +625,8 @@ async function handleLogin(e) {
 }
 
 async function handleLogout() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
     state.user = null;
     updateUIForUser();
     showToast('Ви вийшли з аккаунту', 'success');
