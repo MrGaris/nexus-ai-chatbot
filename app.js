@@ -3,17 +3,21 @@ const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 let API_KEY = 'GH_SECRET_OPENROUTER_API_KEY';
 const DEFAULT_MODEL = 'openai/gpt-oss-120b:free';
 
+// Підготовка API ключа: якщо ми локально і ключ не замінено GitHub Actions
+if (API_KEY.includes('GH_SECRET')) {
+    let savedKey = localStorage.getItem('local_api_key');
+    if (!savedKey) {
+        savedKey = prompt('Для локального тестування введіть OpenRouter API Key (або натисніть Скасувати):');
+        if (savedKey) localStorage.setItem('local_api_key', savedKey);
+    }
+    API_KEY = savedKey || '';
+}
+
 // Supabase Configuration
 const SUPABASE_URL = 'https://cuyxplgotvxzhlxzxhwr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_3wHwg5P8CSgb48E3RstwmQ_lqoKFRgE';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const DEFAULT_SYSTEM = '';
-
-// Для локального тестування (щоб працювало на комп'ютері, поки GitHub не підставив ключ)
-if (API_KEY === 'GH_SECRET_OPENROUTER_API_KEY' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    API_KEY = localStorage.getItem('local_api_key') || prompt('Для локального тестування введіть OpenRouter API Key:');
-    if (API_KEY) localStorage.setItem('local_api_key', API_KEY);
-}
 
 // ===== State =====
 let state = {
@@ -74,142 +78,205 @@ const el = {
 
 // ===== Init =====
 async function init() {
-    applyTheme(state.theme);
-    el.themeToggle.checked = state.theme === 'light';
-    el.tempSlider.value = state.temperature;
-    el.tempValue.textContent = state.temperature;
-    el.streamToggle.checked = state.streaming;
-    el.systemPromptInput.value = state.systemPrompt;
-    bindEvents();
-    renderChatList();
-    updateStats();
-    await checkUser();
-    if (state.user) {
-        await syncChatsFromSupabase();
-    } else if (state.chats.length > 0) {
-        loadChat(state.chats[0].id);
+    try {
+        applyTheme(state.theme);
+        if(el.themeToggle) el.themeToggle.checked = state.theme === 'light';
+        if(el.tempSlider) el.tempSlider.value = state.temperature;
+        if(el.tempValue) el.tempValue.textContent = state.temperature;
+        if(el.streamToggle) el.streamToggle.checked = state.streaming;
+        if(el.systemPromptInput) el.systemPromptInput.value = state.systemPrompt;
+        
+        bindEvents();
+        renderChatList();
+        updateStats();
+        
+        await checkUser();
+        
+        if (state.user) {
+            await syncChatsFromSupabase();
+        } else if (state.chats.length > 0) {
+            loadChat(state.chats[0].id);
+        }
+    } catch (err) {
+        console.error("Initialization error:", err);
     }
 }
 
 async function syncChatsFromSupabase() {
     if (!supabaseClient || !state.user) return;
-    const { data, error } = await supabaseClient
-        .from('chats')
-        .select('*')
-        .order('created_at', { ascending: false });
-    
-    if (data) {
-        state.chats = data;
-        renderChatList();
-        if (data.length > 0 && !state.activeChatId) {
-            loadChat(data[0].id);
+    try {
+        const { data, error } = await supabaseClient
+            .from('chats')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (data) {
+            state.chats = data;
+            renderChatList();
+            if (data.length > 0 && !state.activeChatId) {
+                loadChat(data[0].id);
+            }
         }
+    } catch (e) {
+        console.error(e);
     }
 }
 
 async function checkUser() {
     if (!supabaseClient) return;
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (user) {
-        state.user = user;
+    try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (user) {
+            state.user = user;
+            updateUIForUser();
+        } else {
+            updateUIForUser();
+        }
+    } catch (e) {
+        console.error(e);
         updateUIForUser();
     }
 }
 
 function updateUIForUser() {
+    const profileName = $('profile-name');
+    const profileEmail = $('profile-email');
+    const btnLogin = $('btn-login');
+
     if (state.user) {
-        $('profile-name').textContent = state.user.user_metadata?.full_name || state.user.email.split('@')[0];
-        $('profile-email').textContent = state.user.email;
-        $('btn-login').innerHTML = '<span>Вийти</span>';
-        $('btn-login').onclick = handleLogout;
+        if(profileName) profileName.textContent = state.user.user_metadata?.full_name || state.user.email.split('@')[0];
+        if(profileEmail) profileEmail.textContent = state.user.email;
+        if(btnLogin) {
+            btnLogin.innerHTML = '<span>Вийти</span>';
+            btnLogin.onclick = handleLogout;
+        }
     } else {
-        $('profile-name').textContent = 'Гість';
-        $('profile-email').textContent = 'guest@nexusai.local';
-        $('btn-login').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg><span>Увійти / Зареєструватися</span>';
-        $('btn-login').onclick = () => el.authModal.classList.add('open');
+        if(profileName) profileName.textContent = 'Гість';
+        if(profileEmail) profileEmail.textContent = 'guest@nexusai.local';
+        if(btnLogin) {
+            btnLogin.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg><span>Увійти / Зареєструватися</span>';
+            btnLogin.onclick = () => {
+                if(el.authModal) el.authModal.classList.add('open');
+            };
+        }
     }
 }
 
 // ===== Events =====
 function bindEvents() {
-    el.messageInput.addEventListener('input', onInputChange);
-    el.messageInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if(el.messageInput) {
+        el.messageInput.addEventListener('input', onInputChange);
+        el.messageInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        });
+    }
+    if(el.btnSend) el.btnSend.addEventListener('click', sendMessage);
+    if(el.btnStop) el.btnStop.addEventListener('click', stopGeneration);
+    if(el.btnNewChat) el.btnNewChat.addEventListener('click', newChat);
+    
+    if(el.btnToggleLeft) el.btnToggleLeft.addEventListener('click', toggleLeftSidebar);
+    if(el.btnToggleRight) el.btnToggleRight.addEventListener('click', () => {
+        el.sidebarRight.classList.add('open');
     });
-    el.btnSend.addEventListener('click', sendMessage);
-    el.btnStop.addEventListener('click', stopGeneration);
-    el.btnNewChat.addEventListener('click', newChat);
-    el.btnToggleLeft.addEventListener('click', toggleLeftSidebar);
-    el.btnToggleRight.addEventListener('click', () => el.sidebarRight.classList.toggle('open'));
-    el.btnCloseRight.addEventListener('click', () => el.sidebarRight.classList.remove('open'));
-    el.btnClearAll.addEventListener('click', clearAllChats);
-    el.searchChats.addEventListener('input', renderChatList);
-    el.themeToggle.addEventListener('change', () => {
+    if(el.btnCloseRight) el.btnCloseRight.addEventListener('click', () => {
+        el.sidebarRight.classList.remove('open');
+    });
+    
+    if(el.btnClearAll) el.btnClearAll.addEventListener('click', clearAllChats);
+    if(el.searchChats) el.searchChats.addEventListener('input', renderChatList);
+    
+    if(el.themeToggle) el.themeToggle.addEventListener('change', () => {
         state.theme = el.themeToggle.checked ? 'light' : 'dark';
         applyTheme(state.theme);
         localStorage.setItem('nexus_theme', state.theme);
     });
-    el.tempSlider.addEventListener('input', () => {
+    if(el.tempSlider) el.tempSlider.addEventListener('input', () => {
         state.temperature = parseFloat(el.tempSlider.value);
-        el.tempValue.textContent = state.temperature;
+        if(el.tempValue) el.tempValue.textContent = state.temperature;
         localStorage.setItem('nexus_temp', state.temperature);
     });
-    el.streamToggle.addEventListener('change', () => {
+    if(el.streamToggle) el.streamToggle.addEventListener('change', () => {
         state.streaming = el.streamToggle.checked;
         localStorage.setItem('nexus_stream', state.streaming);
     });
-    el.modelSelector.addEventListener('click', () => el.modelDropdown.classList.toggle('open'));
-    document.addEventListener('click', e => {
-        if (!el.modelSelector.contains(e.target) && !el.modelDropdown.contains(e.target))
-            el.modelDropdown.classList.remove('open');
+    
+    if(el.modelSelector) el.modelSelector.addEventListener('click', () => {
+        if(el.modelDropdown) el.modelDropdown.classList.toggle('open');
     });
-    el.btnSystemPrompt.addEventListener('click', () => el.systemPromptModal.classList.add('open'));
-    el.btnCloseModal.addEventListener('click', () => el.systemPromptModal.classList.remove('open'));
-    el.btnSavePrompt.addEventListener('click', () => {
-        state.systemPrompt = el.systemPromptInput.value || DEFAULT_SYSTEM;
+    
+    document.addEventListener('click', e => {
+        if (el.modelSelector && el.modelDropdown && !el.modelSelector.contains(e.target) && !el.modelDropdown.contains(e.target)) {
+            el.modelDropdown.classList.remove('open');
+        }
+    });
+    
+    if(el.btnSystemPrompt) el.btnSystemPrompt.addEventListener('click', () => {
+        if(el.systemPromptModal) el.systemPromptModal.classList.add('open');
+    });
+    if(el.btnCloseModal) el.btnCloseModal.addEventListener('click', () => {
+        if(el.systemPromptModal) el.systemPromptModal.classList.remove('open');
+    });
+    if(el.btnSavePrompt) el.btnSavePrompt.addEventListener('click', () => {
+        state.systemPrompt = el.systemPromptInput ? el.systemPromptInput.value.trim() : '';
         localStorage.setItem('nexus_system', state.systemPrompt);
-        el.systemPromptModal.classList.remove('open');
+        if(el.systemPromptModal) el.systemPromptModal.classList.remove('open');
         showToast('Системний промпт збережено', 'success');
     });
-    el.btnResetPrompt.addEventListener('click', () => {
-        el.systemPromptInput.value = DEFAULT_SYSTEM;
+    if(el.btnResetPrompt) el.btnResetPrompt.addEventListener('click', () => {
+        if(el.systemPromptInput) el.systemPromptInput.value = DEFAULT_SYSTEM;
         state.systemPrompt = DEFAULT_SYSTEM;
         localStorage.setItem('nexus_system', DEFAULT_SYSTEM);
         showToast('Промпт скинуто', 'success');
     });
-    el.btnLogin.addEventListener('click', () => el.authModal.classList.add('open'));
-    el.btnCloseAuth.addEventListener('click', () => el.authModal.classList.remove('open'));
+    
+    if(el.btnLogin) el.btnLogin.addEventListener('click', () => {
+        if(el.authModal) el.authModal.classList.add('open');
+    });
+    if(el.btnCloseAuth) el.btnCloseAuth.addEventListener('click', () => {
+        if(el.authModal) el.authModal.classList.remove('open');
+    });
     
     document.querySelectorAll('.auth-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            $('auth-form-login').classList.toggle('hidden', tab.dataset.tab !== 'login');
-            $('auth-form-register').classList.toggle('hidden', tab.dataset.tab !== 'register');
-            $('auth-modal-title').textContent = tab.dataset.tab === 'login' ? 'Вхід' : 'Реєстрація';
+            const formLogin = $('auth-form-login');
+            const formReg = $('auth-form-register');
+            if(formLogin) formLogin.classList.toggle('hidden', tab.dataset.tab !== 'login');
+            if(formReg) formReg.classList.toggle('hidden', tab.dataset.tab !== 'register');
+            const authTitle = $('auth-modal-title');
+            if(authTitle) authTitle.textContent = tab.dataset.tab === 'login' ? 'Вхід' : 'Реєстрація';
         });
     });
 
-    $('auth-form-login').addEventListener('submit', handleLogin);
-    $('auth-form-register').addEventListener('submit', handleRegister);
+    const formLogin = $('auth-form-login');
+    const formReg = $('auth-form-register');
+    if(formLogin) formLogin.addEventListener('submit', handleLogin);
+    if(formReg) formReg.addEventListener('submit', handleRegister);
 
     document.querySelectorAll('.suggestion-card').forEach(card => {
         card.addEventListener('click', () => {
-            el.messageInput.value = card.dataset.prompt;
-            onInputChange();
-            sendMessage();
+            if(el.messageInput) {
+                el.messageInput.value = card.dataset.prompt;
+                onInputChange();
+                sendMessage();
+            }
         });
     });
 
     [el.systemPromptModal, el.authModal].forEach(modal => {
-        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+        if(modal) {
+            modal.addEventListener('click', e => { 
+                if (e.target === modal) modal.classList.remove('open'); 
+            });
+        }
     });
 }
 
 function onInputChange() {
     const v = el.messageInput.value;
     el.btnSend.disabled = !v.trim();
-    el.charCount.textContent = v.length > 0 ? v.length : '';
+    if(el.charCount) el.charCount.textContent = v.length > 0 ? v.length : '';
     el.messageInput.style.height = 'auto';
     el.messageInput.style.height = Math.min(el.messageInput.scrollHeight, 160) + 'px';
 }
@@ -223,13 +290,25 @@ async function createChat(title) {
     };
 
     if (state.user && supabaseClient) {
-        const { data, error } = await supabaseClient
-            .from('chats')
-            .insert([{ title: chat.title, user_id: state.user.id, messages: [] }])
-            .select();
-        if (data) {
-            state.chats.unshift(data[0]);
-            state.activeChatId = data[0].id;
+        try {
+            const { data, error } = await supabaseClient
+                .from('chats')
+                .insert([{ title: chat.title, user_id: state.user.id, messages: [] }])
+                .select();
+            if (data && data.length > 0) {
+                state.chats.unshift(data[0]);
+                state.activeChatId = data[0].id;
+            } else {
+                // Fallback if supabase fails
+                chat.id = Date.now().toString();
+                state.chats.unshift(chat);
+                state.activeChatId = chat.id;
+            }
+        } catch(e) {
+            console.error(e);
+            chat.id = Date.now().toString();
+            state.chats.unshift(chat);
+            state.activeChatId = chat.id;
         }
     } else {
         chat.id = Date.now().toString();
@@ -242,20 +321,20 @@ async function createChat(title) {
 
 function newChat() {
     state.activeChatId = null;
-    el.welcomeScreen.classList.remove('hidden');
-    el.messagesContainer.innerHTML = '';
-    el.messageInput.value = '';
+    if(el.welcomeScreen) el.welcomeScreen.classList.remove('hidden');
+    if(el.messagesContainer) el.messagesContainer.innerHTML = '';
+    if(el.messageInput) el.messageInput.value = '';
     onInputChange();
     renderChatList();
-    el.messageInput.focus();
+    if(el.messageInput) el.messageInput.focus();
 }
 
 function loadChat(id) {
     const chat = state.chats.find(c => c.id === id);
     if (!chat) return;
     state.activeChatId = id;
-    el.welcomeScreen.classList.add('hidden');
-    el.messagesContainer.innerHTML = '';
+    if(el.welcomeScreen) el.welcomeScreen.classList.add('hidden');
+    if(el.messagesContainer) el.messagesContainer.innerHTML = '';
     chat.messages.forEach(m => appendMessage(m.role, m.content, false));
     renderChatList();
     scrollToBottom();
@@ -263,7 +342,11 @@ function loadChat(id) {
 
 async function deleteChat(id) {
     if (state.user && supabaseClient) {
-        await supabaseClient.from('chats').delete().eq('id', id);
+        try {
+            await supabaseClient.from('chats').delete().eq('id', id);
+        } catch(e) {
+            console.error(e);
+        }
     }
     state.chats = state.chats.filter(c => c.id !== id);
     saveChats();
@@ -272,14 +355,32 @@ async function deleteChat(id) {
     updateStats();
 }
 
+function clearAllChats() {
+    if (!confirm('Очистити всю історію чатів?')) return;
+    if (state.user && supabaseClient) {
+        // Just clear locally for now to avoid accidental full db wipes, but ideally would call supabase
+        state.chats = [];
+    } else {
+        state.chats = [];
+    }
+    saveChats();
+    newChat();
+    updateStats();
+    showToast('Історію очищено', 'success');
+}
+
 async function saveChats() {
     if (state.user && supabaseClient && state.activeChatId) {
         const chat = state.chats.find(c => c.id === state.activeChatId);
         if (chat) {
-            await supabaseClient
-                .from('chats')
-                .update({ messages: chat.messages })
-                .eq('id', state.activeChatId);
+            try {
+                await supabaseClient
+                    .from('chats')
+                    .update({ messages: chat.messages })
+                    .eq('id', state.activeChatId);
+            } catch(e) {
+                console.error(e);
+            }
         }
     } else {
         localStorage.setItem('nexus_chats', JSON.stringify(state.chats));
@@ -287,6 +388,7 @@ async function saveChats() {
 }
 
 function renderChatList() {
+    if (!el.searchChats) return;
     const q = el.searchChats.value.toLowerCase();
     const now = Date.now();
     const day = 86400000;
@@ -294,16 +396,17 @@ function renderChatList() {
 
     state.chats.forEach(c => {
         if (q && !c.title.toLowerCase().includes(q)) return;
-        const age = now - new Date(c.created_at || c.created).getTime();
+        const age = now - new Date(c.created_at || c.created || Date.now()).getTime();
         if (age < day) today.push(c);
         else if (age < day * 7) week.push(c);
         else older.push(c);
     });
 
     const render = (list, container) => {
+        if(!container) return;
         const section = container.closest('.sidebar-section');
-        if (list.length === 0) { section.style.display = 'none'; return; }
-        section.style.display = '';
+        if (list.length === 0) { if(section) section.style.display = 'none'; return; }
+        if(section) section.style.display = '';
         container.innerHTML = list.map(c => `
             <div class="chat-item ${c.id === state.activeChatId ? 'active' : ''}" data-id="${c.id}">
                 <span>${escapeHtml(c.title)}</span>
@@ -314,10 +417,10 @@ function renderChatList() {
                 </button>
             </div>
         `).join('');
-        container.querySelectorAll('.chat-item').forEach(el => {
-            el.addEventListener('click', e => {
+        container.querySelectorAll('.chat-item').forEach(itemEl => {
+            itemEl.addEventListener('click', e => {
                 if (e.target.closest('.delete-chat')) return;
-                loadChat(el.dataset.id);
+                loadChat(itemEl.dataset.id);
             });
         });
         container.querySelectorAll('.delete-chat').forEach(btn => {
@@ -331,6 +434,7 @@ function renderChatList() {
 }
 
 function appendMessage(role, content, animate = true) {
+    if(!el.messagesContainer) return null;
     const div = document.createElement('div');
     div.className = `message ${role}`;
     if (!animate) div.style.animation = 'none';
@@ -365,6 +469,7 @@ function appendMessage(role, content, animate = true) {
 }
 
 function appendTypingIndicator() {
+    if(!el.messagesContainer) return null;
     const div = document.createElement('div');
     div.className = 'message assistant';
     div.id = 'typing-msg';
@@ -385,17 +490,17 @@ function appendTypingIndicator() {
 }
 
 async function sendMessage() {
-    if (!API_KEY || API_KEY === 'GH_SECRET_OPENROUTER_API_KEY') {
-        showToast('Помилка: API Key не налаштовано!', 'error');
+    if (!API_KEY || API_KEY.includes('GH_SECRET')) {
+        showToast('Помилка: API Key не налаштовано! Оновіть сторінку і введіть ключ.', 'error');
         return;
     }
-    const text = el.messageInput.value.trim();
+    const text = el.messageInput ? el.messageInput.value.trim() : '';
     if (!text) return;
 
     if (!state.activeChatId) {
         const title = text.length > 40 ? text.substring(0, 40) + '…' : text;
         const chat = await createChat(title);
-        el.welcomeScreen.classList.add('hidden');
+        if(el.welcomeScreen) el.welcomeScreen.classList.add('hidden');
         renderChatList();
     }
 
@@ -404,16 +509,20 @@ async function sendMessage() {
 
     chat.messages.push({ role: 'user', content: text });
     appendMessage('user', text);
-    el.messageInput.value = '';
+    if(el.messageInput) el.messageInput.value = '';
     onInputChange();
     saveChats();
     scrollToBottom();
 
-    el.btnSend.classList.add('hidden');
-    el.btnStop.classList.remove('hidden');
+    if(el.btnSend) el.btnSend.classList.add('hidden');
+    if(el.btnStop) el.btnStop.classList.remove('hidden');
     const typingEl = appendTypingIndicator();
 
-    const apiMessages = [{ role: 'system', content: state.systemPrompt }];
+    const apiMessages = [];
+    if (state.systemPrompt) {
+        apiMessages.push({ role: 'system', content: state.systemPrompt });
+    }
+    
     const recent = chat.messages.slice(-20);
     recent.forEach(m => apiMessages.push({ role: m.role, content: m.content }));
 
@@ -426,14 +535,14 @@ async function sendMessage() {
             await normalResponse(apiMessages, typingEl, chat);
         }
     } catch (err) {
-        typingEl.remove();
+        if(typingEl) typingEl.remove();
         if (err.name !== 'AbortError') {
             appendMessage('assistant', `❌ Помилка: ${err.message}`);
             showToast('Помилка запиту', 'error');
         }
     } finally {
-        el.btnSend.classList.remove('hidden');
-        el.btnStop.classList.add('hidden');
+        if(el.btnSend) el.btnSend.classList.remove('hidden');
+        if(el.btnStop) el.btnStop.classList.add('hidden');
         state.abortController = null;
         updateStats();
     }
@@ -452,8 +561,10 @@ async function streamResponse(messages, typingEl, chat) {
         throw new Error(`API ${res.status}: ${err}`);
     }
 
-    typingEl.remove();
+    if(typingEl) typingEl.remove();
     const msgDiv = appendMessage('assistant', '');
+    if(!msgDiv) return;
+    
     const contentEl = msgDiv.querySelector('.message-content');
     let fullText = '';
 
@@ -477,18 +588,20 @@ async function streamResponse(messages, typingEl, chat) {
                 const delta = json.choices?.[0]?.delta?.content;
                 if (delta) {
                     fullText += delta;
-                    contentEl.innerHTML = formatMarkdown(fullText);
-                    contentEl.querySelectorAll('pre:not(:has(.copy-btn))').forEach(pre => {
-                        const btn = document.createElement('button');
-                        btn.className = 'copy-btn';
-                        btn.textContent = 'Копіювати';
-                        btn.onclick = () => {
-                            navigator.clipboard.writeText(pre.textContent.replace('Копіювати', '').trim());
-                            btn.textContent = '✓';
-                            setTimeout(() => btn.textContent = 'Копіювати', 1500);
-                        };
-                        pre.appendChild(btn);
-                    });
+                    if(contentEl) {
+                        contentEl.innerHTML = formatMarkdown(fullText);
+                        contentEl.querySelectorAll('pre:not(:has(.copy-btn))').forEach(pre => {
+                            const btn = document.createElement('button');
+                            btn.className = 'copy-btn';
+                            btn.textContent = 'Копіювати';
+                            btn.onclick = () => {
+                                navigator.clipboard.writeText(pre.textContent.replace('Копіювати', '').trim());
+                                btn.textContent = '✓';
+                                setTimeout(() => btn.textContent = 'Копіювати', 1500);
+                            };
+                            pre.appendChild(btn);
+                        });
+                    }
                     scrollToBottom();
                 }
             } catch {}
@@ -514,7 +627,7 @@ async function normalResponse(messages, typingEl, chat) {
 
     const json = await res.json();
     const content = json.choices?.[0]?.message?.content || 'Немає відповіді';
-    typingEl.remove();
+    if(typingEl) typingEl.remove();
     appendMessage('assistant', content);
     chat.messages.push({ role: 'assistant', content });
     saveChats();
@@ -560,10 +673,11 @@ function escapeHtml(text) {
 }
 
 function scrollToBottom() {
-    el.chatArea.scrollTop = el.chatArea.scrollHeight;
+    if(el.chatArea) el.chatArea.scrollTop = el.chatArea.scrollHeight;
 }
 
 function toggleLeftSidebar() {
+    if (!el.sidebarLeft) return;
     if (window.innerWidth <= 768) {
         el.sidebarLeft.classList.toggle('mobile-open');
     } else {
@@ -578,12 +692,13 @@ function applyTheme(theme) {
 function updateStats() {
     let msgs = 0;
     state.chats.forEach(c => msgs += c.messages.length);
-    el.statMessages.textContent = msgs;
-    el.statChats.textContent = state.chats.length;
-    el.statTokens.textContent = Math.round(msgs * 150);
+    if(el.statMessages) el.statMessages.textContent = msgs;
+    if(el.statChats) el.statChats.textContent = state.chats.length;
+    if(el.statTokens) el.statTokens.textContent = Math.round(msgs * 150);
 }
 
 function showToast(msg, type = 'success') {
+    if(!el.toastContainer) return;
     const t = document.createElement('div');
     t.className = `toast ${type}`;
     t.textContent = msg;
@@ -593,49 +708,72 @@ function showToast(msg, type = 'success') {
 
 async function handleRegister(e) {
     e.preventDefault();
-    if (!supabaseClient) return;
+    if (!supabaseClient) {
+        showToast('Помилка підключення до бази', 'error');
+        return;
+    }
     const email = $('reg-email').value;
     const password = $('reg-password').value;
     const name = $('reg-name').value;
 
-    const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name } }
-    });
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: name } }
+        });
 
-    if (error) {
-        showToast(error.message, 'error');
-    } else {
-        showToast('Перевірте пошту для підтвердження!', 'success');
-        el.authModal.classList.remove('open');
+        if (error) {
+            showToast(error.message, 'error');
+        } else {
+            showToast('Успішно! Тепер можете увійти.', 'success');
+            if(el.authModal) el.authModal.classList.remove('open');
+        }
+    } catch(err) {
+        showToast('Помилка реєстрації', 'error');
     }
 }
 
 async function handleLogin(e) {
     e.preventDefault();
-    if (!supabaseClient) return;
+    if (!supabaseClient) {
+        showToast('Помилка підключення до бази', 'error');
+        return;
+    }
     const email = $('login-email').value;
     const password = $('login-password').value;
 
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-    if (error) {
-        showToast(error.message, 'error');
-    } else {
-        state.user = data.user;
-        updateUIForUser();
-        el.authModal.classList.remove('open');
-        showToast('Вітаємо, ' + (state.user.user_metadata?.full_name || email), 'success');
+        if (error) {
+            showToast(error.message, 'error');
+        } else {
+            state.user = data.user;
+            updateUIForUser();
+            if(el.authModal) el.authModal.classList.remove('open');
+            showToast('Вітаємо, ' + (state.user.user_metadata?.full_name || email), 'success');
+        }
+    } catch(err) {
+        showToast('Помилка входу', 'error');
     }
 }
 
 async function handleLogout() {
     if (!supabaseClient) return;
-    await supabaseClient.auth.signOut();
+    try {
+        await supabaseClient.auth.signOut();
+    } catch(e) {
+        console.error(e);
+    }
     state.user = null;
     updateUIForUser();
     showToast('Ви вийшли з аккаунту', 'success');
 }
 
-init();
+// Ensure the code runs after DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}

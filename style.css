@@ -8,7 +8,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 /* Sidebar */
 .sidebar{width:var(--sidebar-w);background:var(--bg2);backdrop-filter:blur(20px);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:transform .3s ease,opacity .3s ease;z-index:20;flex-shrink:0;overflow:hidden}
 .sidebar-right{border-right:none;border-left:1px solid var(--border);transform:translateX(100%);position:fixed;right:0;top:0;height:100%;opacity:0;pointer-events:none}
-.sidebar-right.open{transform:translateX(0);opacity:1;pointer-events:all}
+.sidebar-right.open{transform:translateX(0);opacity:1;pointer-events:auto;z-index:100}
 .sidebar-left.collapsed{transform:translateX(-100%);position:absolute;left:0;top:0;height:100%;opacity:0;pointer-events:none}
 .sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border);height:var(--topbar-h)}
 .logo{display:flex;align-items:center;gap:10px}
@@ -69,8 +69,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 .gradient-text{background:linear-gradient(135deg,var(--accent),var(--accent2),#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .welcome-subtitle{color:var(--text2);max-width:480px;line-height:1.6;margin-bottom:36px;font-size:.95rem}
 .suggestion-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:520px;width:100%}
-.suggestion-card{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;text-align:left;transition:all var(--transition)}
-.suggestion-card:hover{border-color:var(--accent);background:var(--surface2);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.suggestion-card{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;text-align:left;transition:all var(--transition);color:var(--text)}
+.suggestion-card:hover{border-color:var(--accent);background:var(--surface2);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.2);color:var(--text)}
 .suggestion-icon{font-size:1.4rem;flex-shrink:0}
 .suggestion-title{font-size:.82rem;font-weight:600;display:block}
 .suggestion-desc{font-size:.72rem;color:var(--text3);display:block;margin-top:2px}
